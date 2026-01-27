@@ -67,56 +67,125 @@ public final class ASTInterpreter {
   static Object visit(Expr expression, JSObject env) {
     return switch (expression) {
       case Block(List<Expr> exprs, int lineNumber) -> {
-        if (true) {
-          throw new UnsupportedOperationException("TODO Block");
+        for (var expr: exprs) {
+          visit(expr, env);
         }
-        // TODO loop over all instructions
         yield UNDEFINED;
       }
       case Literal(Object value, int lineNumber) -> {
-        throw new UnsupportedOperationException("TODO Literal");
+        yield value;
       }
-      case Call(Expr qualifier, List<Expr> args, int lineNumber) -> {
-        throw new UnsupportedOperationException("TODO Call");
+      case Call(Expr qualifier, List<Expr> args, int lineNumber) -> { // qualifier -> nom de l'expression
+        var maybeFunction = visit(qualifier, env);
+        if (!(maybeFunction instanceof JSObject function)) {
+          throw new Failure("Not a function " + maybeFunction + " at line " + lineNumber);
+        }
+        var arrayArs = args.stream()
+            .map(arg -> visit(arg, env))
+            .toArray();
+        yield function.invoke(UNDEFINED, arrayArs);
       }
       case Identifier(String name, int lineNumber) -> {
-        throw new UnsupportedOperationException("TODO Identifier");
+        var value = env.lookupOrDefault(name, null);
+        if (value == null) {
+          throw new Failure("variable " + name + " should be instanciate before being used at line " + lineNumber);
+        }
+        yield value;
       }
       case VarAssignment(String name, Expr expr, boolean declaration, int lineNumber) -> {
-        throw new UnsupportedOperationException("TODO VarAssignment");
+        if (!declaration && env.lookupOrDefault(name, null) == null) {
+          throw new Failure("variable " + name + " should be instanciate before being used at line " + lineNumber);
+        }
+        var value = visit(expr, env);
+        env.register(name, value);
+        yield value;
       }
       case Fun(String name, List<String> parameters, boolean toplevel, Block body, int lineNumber) -> {
-				throw new UnsupportedOperationException("TODO Fun");
-        //Object.Invoker invoker = new Object.Invoke() {
-        //  @Override
-        //  public Object invoke(Object receiver, Object... args) {
-        //    // check the arguments length
-        //    // create a new environment
-        //    // add this and all the parameters
-        //    // execute the body
-        //  }
-        //};
-        // create the JS function with the invoker
-        // register it into the global env if it's a toplevel
-        // yield the function
+        // toplevel if declaration is 'function a() {}' and not 'var a = function() {}'
+				JSObject.Invoker invoker = new JSObject.Invoker() {
+          @Override
+          public Object invoke(Object receiver, Object... args) {
+            // check the arguments length
+            if (parameters.size() != args.length) {
+              throw new Failure("Wrong number of arguments for " + name);
+            }
+            // create a new environment
+            var newEnv = JSObject.newEnv(env);
+            // add this and all the parameters
+            newEnv.register("this", receiver);
+            for (int i = 0; i < parameters.size(); i++) {
+              newEnv.register(parameters.get(i), args[i]);
+            }
+            // execute the body
+            try {
+              execute(body, newEnv);
+            } catch (ReturnError error) {
+              return error.getValue();
+            }
+            return UNDEFINED;
+          }
+        };
+        var function = JSObject.newFunction(name, invoker);
+        if (toplevel) {
+          env.register(name, function);
+        }
+        yield function;
       }
       case Return(Expr expr, int lineNumber) -> {
-				throw new UnsupportedOperationException("TODO Return");
+				throw new ReturnError(visit(expr, env));
       }
       case If(Expr condition, Block trueBlock, Block falseBlock, int lineNumber) -> {
-				throw new UnsupportedOperationException("TODO If");
+				var exprOutput = visit(condition, env);
+        var isFalse = switch (exprOutput) {
+          case Integer i -> i == 0;
+          case String str -> str.isEmpty();
+          default -> {
+            if (UNDEFINED.equals(exprOutput)) {
+              yield false;
+            } else {
+              throw new AssertionError();
+            }
+          }
+        };
+        if (!isFalse) {
+          execute(trueBlock, env);
+        } else {
+          execute(falseBlock, env);
+        }
+        yield UNDEFINED;
+
       }
       case ObjectLiteral(Map<String, Expr> initMap, int lineNumber) -> {
-				throw new UnsupportedOperationException("TODO ObjectLiteral");
+				var newEnv = JSObject.newObject(null);
+        initMap.forEach((k, v) -> newEnv.register(k, visit(v, env)));
+        yield newEnv;
       }
       case FieldAccess(Expr receiver, String name, int lineNumber) -> {
-        throw new UnsupportedOperationException("TODO FieldAccess");
+        var maybeObject = visit(receiver, env);
+        if (!(maybeObject instanceof JSObject object)) {
+          throw new Failure("Not an object " + maybeObject + " at line " + lineNumber);
+        }
+        yield object.lookupOrDefault(name, UNDEFINED);
       }
       case FieldAssignment(Expr receiver, String name, Expr expr, int lineNumber) -> {
-        throw new UnsupportedOperationException("TODO FieldAssignment");
+        var maybeObject = visit(receiver, env);
+        if (!(maybeObject instanceof JSObject object)) {
+          throw new Failure("Not an object " + maybeObject + " at line " + lineNumber);
+        }
+        var value = visit(expr, env);
+        object.register(name, value);
+        yield value;
       }
       case MethodCall(Expr receiver, String name, List<Expr> args, int lineNumber) -> {
-        throw new UnsupportedOperationException("TODO MethodCall");
+        var maybeObject = visit(receiver, env);
+        if (!(maybeObject instanceof JSObject object)) {
+          throw new Failure("Not an object " + maybeObject + " at line " + lineNumber);
+        }
+        var maybeMethod = object.lookupOrDefault(name, null);
+        if (!(maybeMethod instanceof JSObject method)) {
+          throw new Failure("Not an method " + maybeMethod + " at line " + lineNumber);
+        }
+        yield method.invoke(maybeObject, args.stream().map(arg -> visit(arg, env)).toArray());
       }
     };
   }
