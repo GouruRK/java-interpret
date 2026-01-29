@@ -558,7 +558,6 @@ public class StackInterpreterInstrTests {
 		}
 	}
 
-	/*
 	@Nested
 	public class Q11 {
 		@Test
@@ -1122,6 +1121,7 @@ public class StackInterpreterInstrTests {
 		}
 	}
 
+	/*
 	@Nested
 	public class Q15 {
 		@Test

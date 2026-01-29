@@ -141,11 +141,10 @@ public final class StackInterpreter {
 					store(stack, bp, offset, value);
 				}
 				case Instructions.DUP -> {
-					throw new UnsupportedOperationException("TODO DUP");
 					// get value on top of the stack (without remove it)
-					//var value = ...
+					var value = stack[sp - 1];
 					// push it on top of the stack
-					//push(...);
+					push(stack, sp++, value);
 				}
 				case Instructions.POP -> {
 					// adjust the stack pointer
@@ -221,16 +220,16 @@ public final class StackInterpreter {
 					}
 
 					// save bp/pc/code in activation zone
-					var activation = sp;
 					// stack[activation + offset] = ??
+					var activation = baseArg + code.slotCount() - 1; // baseArg + le nombre de locales
 					stack[activation + BP_OFFSET] = bp;
-					stack[activation + PC_OFFSET] = pc;
+					stack[activation + PC_OFFSET] = pc; // pas de pc + 1 pour target l'instruction suivante car on a déjà avancé quand on fait le switch
 					stack[activation + FUN_OFFSET] = encodeDictObject(function, dict);
 
 					// initialize pc, bp and sp
 					pc = 0;
-					bp = sp - code.parameterCount();
-					sp = bp + code.parameterCount() + ACTIVATION_SIZE;
+					bp = baseArg - 1; // a cause du this
+					sp = activation + ACTIVATION_SIZE;
 
 					// initialize all locals that are not parameters
 					 for (var i = bp + code.parameterCount(); i < bp + code.slotCount(); i++) {
@@ -256,43 +255,41 @@ public final class StackInterpreter {
 					// find activation and restore pc
 					int activation = bp + code.slotCount();
 					pc = stack[activation + PC_OFFSET];
-					if (pc == 0) {
+					if (pc == 0) { // on est dans le main
 					   // end of the interpreter
 					  return decodeAnyValue(result, dict, heap);
 					}
 
 					// restore sp, function and bp
-					//sp = ...;
-					//function = (JSObject) ...;
-					//bp = ...;
+					sp = bp - 1; // qualifier
+					function = (JSObject) decodeDictObject(stack[activation + FUN_OFFSET], dict);
+					bp = stack[activation + BP_OFFSET];
 
 					// restore code and instrs
-					//code = (Code) ...;
-					//instrs = code.instrs();
+					code = (Code) function.lookupOrDefault("__code__", null);
+					instrs = code.instrs();
 
 					// push return value
-					//push(...);
+					push(stack, sp++, result);
 
 					// DEBUG
 					// dumpStack("> end ret dump", stack, sp, bp, dict, heap);
 				}
 				case Instructions.GOTO -> {
-					throw new UnsupportedOperationException("TODO GOTO");
 					// get the label
-					//int label = ...
+					int label = instrs[pc++];
 					// change the program counter to the label
-					//pc = ...
+					pc = label;
 				}
 				case Instructions.JUMP_IF_FALSE -> {
-					throw new UnsupportedOperationException("TODO JUMP_IF_FALSE");
 					// get the label
-					//var label = ...
+					var label = instrs[pc++];
 					// get the value on top of the stack
-					//var condition = ...
+					var condition = pop(stack, --sp);
 					// if condition is false change the program counter to the label
-					//if (condition == TagValues.FALSE) {
-					  //pc = label;
-					//}
+					if (condition == TagValues.FALSE) {
+					  pc = label;
+					}
 				}
 				case Instructions.NEW -> {
 					throw new UnsupportedOperationException("TODO NEW");
