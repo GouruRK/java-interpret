@@ -192,21 +192,20 @@ final class InstrRewriter {
 				buffer.emit(RET);
 			}
 			case If(Expr condition, Block trueBlock, Block falseBlock, int lineNumber) -> {
-				throw new UnsupportedOperationException("TODO If");
 				// visit the condition
-				//visit(...);
+				visit(condition, env, buffer, dict);
 				// emit a JUMP_IF_FALSE and a placeholder
-				//var falsePlaceHolder = buffer.emit(JUMP_IF_FALSE).placeholder();
+				var falsePlaceHolder = buffer.emit(JUMP_IF_FALSE).placeholder();
 				// visit the true block
-				//visit(...);
+				visit(trueBlock, env, buffer, dict);
 				// emit a goto with another placeholder
-				//var endPlaceHolder = buffer.emit(GOTO).placeholder();
+				var endPlaceHolder = buffer.emit(GOTO).placeholder();
 				// patch the first placeholder
-				//buffer.patch(..., buffer.label());
+				buffer.patch(falsePlaceHolder, buffer.label());
 				// visit the false block
-				//visit(...);
+				visit(falseBlock, env, buffer, dict);
 				// patch the second placeholder
-				//buffer.patch(..., buffer.label());
+				buffer.patch(endPlaceHolder, buffer.label());
 			}
 			case ObjectLiteral(Map<String, Expr> initMap, int lineNumber) -> {
 				throw new UnsupportedOperationException("TODO ObjectLiteral");
